@@ -1,0 +1,76 @@
+classDiagram
+    %% Final UML for PawPal+, reflecting the implemented pawpal_system.py.
+
+    class Owner {
+        +string owner_id
+        +string name
+        +string contact_info
+        +list~Pet~ pets
+        +dict preferences
+        +add_pet(pet) None
+        +remove_pet(pet_id) None
+        +get_pet(pet_id) Pet
+        +get_all_tasks() list
+        +filter_tasks(is_completed, pet_name) list
+        +to_dict() dict
+        +from_dict(data) Owner
+        +save_to_json(path) None
+        +load_from_json(path) Owner
+    }
+
+    class Pet {
+        +string pet_id
+        +string name
+        +string species
+        +string breed
+        +int age
+        +float weight
+        +float height
+        +dict health_stats
+        +list~Task~ tasks
+        +get_info() dict
+        +edit_info(updates) None
+        +add_health_record(record) None
+        +add_task(task) None
+        +get_tasks() list
+        +remove_task(task_id) None
+        +to_dict() dict
+        +from_dict(data) Pet
+    }
+
+    class Task {
+        +string task_id
+        +string pet_id
+        +string description
+        +string task_type
+        +int duration_minutes
+        +string priority
+        +time scheduled_time
+        +string recurrence
+        +bool is_completed
+        +date due_date
+        +mark_complete() Task
+        +edit_task(updates) None
+        +reschedule(new_time) None
+        +to_dict() dict
+        +from_dict(data) Task
+    }
+
+    class Scheduler {
+        +dict constraints
+        +generate_schedule(owner, constraints) list
+        +sort_by_priority(tasks) list
+        +sort_by_time(tasks) list
+        +complete_task(owner, task_id) Task
+        +check_conflict(task, other_tasks) string
+        +find_conflicts(tasks) list
+        +explain_conflicts(owner, conflicts) string
+        +find_next_available_slot(tasks, duration_minutes, day_start, day_end, after) time
+        +resolve_recurrence_conflict(owner, task, day_start, day_end) bool
+        +explain_plan(schedule) string
+    }
+
+    Owner "1" --> "many" Pet : manages
+    Pet "1" *-- "many" Task : owns
+    Scheduler ..> Owner : reads and updates tasks via
+    Scheduler ..> Task : schedules & checks conflicts
