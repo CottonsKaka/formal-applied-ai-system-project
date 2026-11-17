@@ -3,6 +3,7 @@ from pathlib import Path
 
 import streamlit as st
 
+import agent
 import formatting
 from pawpal_system import Owner, Pet, Scheduler, Task
 
@@ -221,3 +222,48 @@ if st.button("Generate schedule"):
                 st.success("No scheduling conflicts detected.")
         else:
             st.warning("No tasks could be scheduled within the given constraints.")
+
+st.divider()
+
+st.subheader("🤖 AI Scheduling Assistant")
+st.caption(
+    "Describe what you need in plain language. The assistant will add the tasks, build a "
+    "schedule, check its own work for conflicts, and fix any it finds."
+)
+
+ai_request = st.text_area(
+    "What do you need scheduled?",
+    placeholder="Mochi needs a 30 minute walk and a vet visit sometime after lunch, both high priority.",
+)
+
+if st.button("Run AI Assistant"):
+    if not owner.pets:
+        st.warning("Add a pet first before asking the assistant to schedule anything.")
+    elif not ai_request.strip():
+        st.warning("Describe what you need scheduled first.")
+    else:
+        with st.spinner("Working..."):
+            try:
+                result = agent.run_agent(owner, scheduler, ai_request)
+            except RuntimeError as exc:
+                st.error(str(exc))
+            else:
+                persist()
+                st.success(result.summary)
+
+                with st.expander(f"Agent steps ({len(result.trace)})"):
+                    for i, step in enumerate(result.trace, start=1):
+                        st.markdown(f"**{i}. `{step['tool']}`**")
+                        if step["input"]:
+                            st.code(str(step["input"]), language="python")
+                        st.text(step["output"])
+
+                if result.schedule:
+                    st.table(
+                        [
+                            formatting.task_to_row(
+                                t, next(p.name for p in owner.pets if p.pet_id == t.pet_id)
+                            )
+                            for t in result.schedule
+                        ]
+                    )

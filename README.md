@@ -1,6 +1,8 @@
-# PawPal+ (Module 2 Project)
+# PawPal+ — Module 2 Project Evolved with Agentic AI
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+This project originated as my Module 1–3 PawPal+ submission: a rule-based pet-care scheduler for tracking pets and scheduling, sorting, completing, and persisting their care tasks. PawPal+ helps an owner organize walks, feeding, grooming, medication, vet visits, and play by applying priority, time, conflict, recurrence, and availability constraints.
+
+The final system extends that original application with a Gemini-powered agentic workflow. The agent can interpret plain-language requests, use PawPal+'s real scheduling tools, check its own output, and attempt to resolve conflicts.
 
 ## Scenario
 
@@ -34,6 +36,67 @@ Your final app should:
 - **Recurrence conflict auto-resolve** — `Scheduler.resolve_recurrence_conflict()` builds on the slot finder: if a freshly-recurring task would land on top of something else, it's automatically bumped to the next open slot instead of silently overlapping.
 - **JSON persistence** — `Owner.save_to_json()` / `Owner.load_from_json()` (backed by `to_dict()`/`from_dict()` on `Task`, `Pet`, and `Owner`) let the whole system — every pet and every task — survive between runs.
 - **Formatted output** — emoji priority/task-type labels and a `tabulate`-rendered CLI table (`formatting.py`, used by `main.py`), plus color-coded priority badges in the Streamlit UI.
+- **🤖 AI Scheduling Assistant (Agentic Workflow)** — `agent.py`'s `run_agent()` turns a plain-language request ("Mochi needs a walk and a vet visit after lunch, both high priority") into real changes: it plans by calling `add_task`, acts by calling `generate_schedule`, checks its own work with `check_schedule_conflicts`, and fixes anything it finds with `find_open_slot` + `reschedule_task` — repeating the check/fix step until the schedule is clean. Wired into both `app.py` (an "AI Scheduling Assistant" section with a text box, a step-by-step trace, and the resulting schedule) and `main.py` (a CLI demo at the end of the run). See **AI Scheduling Assistant** below for setup and how it maps to the assignment's AI-feature requirement.
+
+## 🤖 AI Scheduling Assistant (Agentic Workflow)
+
+This is the project's required "advanced AI feature": an **agentic workflow** built on the Google Gemini API (`google-genai` Python SDK, model `gemini-3.8-flash`, using function-calling tools in `agent.py`). It's fully integrated into the main application — the agent calls the same `Scheduler` methods the rest of the app uses (`generate_schedule`, `find_conflicts`, `find_next_available_slot`, `reschedule`), it doesn't just print retrieved data alongside a canned answer.
+
+**Why this counts as an agentic workflow, specifically:** the agent runs a real plan → act → check → fix loop, matching the assignment's own example ("a coding assistant that writes, tests, and then fixes code automatically"):
+
+1. **Plan** — turns the request into one or more `add_task` calls (grounded against the owner's real pets via `list_pets`, so it never invents a pet).
+2. **Act** — calls `generate_schedule` to build the day's plan.
+3. **Check** — calls `check_schedule_conflicts` to verify its own work.
+4. **Fix** — if conflicts are found, calls `find_open_slot` + `reschedule_task` to resolve them, then checks again.
+
+**Guardrails & logging:** every tool call is wrapped in its own try/except (a bad pet name, task field, or time string comes back as a clear error string instead of crashing the run) and logged via the standard `logging` module and an in-memory trace shown in the UI; the loop is capped (`max_iterations`, default 8) so a confused run can't go forever.
+
+### Setup
+
+```bash
+pip install -r requirements.txt   # installs the Google Gemini SDK too
+export GOOGLE_API_KEY="your-key-here"   # get one at https://aistudio.google.com/apikey
+```
+
+Without a key set, both `main.py` and the Streamlit app still run normally — the AI section just reports that it's skipped (CLI) or shows a friendly error (UI) instead of crashing.
+
+### Sample interactions
+
+The following examples show the intended input and output behavior. Availability and live wording may vary because Gemini is a hosted model.
+
+**Example 1 — add and check tasks**
+
+- Input: `Mochi needs a 30 minute walk and a vet visit sometime after lunch, both high priority.`
+- Typical result: the agent calls `list_pets`, calls `add_task` twice, calls `generate_schedule`, calls `check_schedule_conflicts`, and summarizes the resulting plan.
+- UI: the trace expander shows every tool call and output, followed by the resulting schedule table.
+
+**Example 2 — resolve a conflict**
+
+- Input: `Schedule a 20 minute grooming session for Luna at 9:00.`
+- If that time overlaps an existing task, the agent calls `find_open_slot`, calls `reschedule_task`, and checks conflicts again.
+- Result: a plain-language summary reports the moved task and its new time.
+
+**Example 3 — missing pet**
+
+- Input: `Add a 10 minute feeding task for Pixel.`
+- Result: `list_pets` establishes that Pixel is not in the owner's pet list, so the agent does not invent a pet and asks or tells the user to add Pixel first.
+
+## System Architecture
+
+The architecture diagram shows the Streamlit and CLI interfaces, Gemini agentic workflow, plan/act/check/fix tools, PawPal+ domain model, JSON persistence, and human/test review points.
+
+![PawPal+ system architecture](assets/architecture.png)
+
+Editable Mermaid source: [diagrams/architecture.mmd](diagrams/architecture.mmd)
+
+## Design Decisions
+
+- **Kept scheduling logic in `pawpal_system.py`.** The Gemini agent calls existing domain methods instead of replacing them or implementing scheduling through prompt-only reasoning. This keeps the system deterministic and testable.
+- **Used a bounded plan–act–check–fix loop.** Gemini may add tasks, generate a schedule, inspect conflicts, find an open slot, and reschedule tasks, but it is limited to eight iterations to avoid runaway cost or loops.
+- **Grounded tools in real application state.** Tool closures receive the current `Owner`, `Scheduler`, and request trace, so task names and operations act on the user's saved data rather than fabricated examples.
+- **Separated the AI integration.** `agent.py` owns Gemini and tool orchestration; `app.py` and `main.py` only present results and handle persistence or friendly error states.
+- **Chose explicit guardrails.** Tool calls catch malformed input, unknown pets/tasks, and invalid times. API credential, quota, server, and network failures are converted into concise user-facing messages.
+- **Preserved the deterministic app.** Manual pet/task entry and schedule generation remain available even when Gemini is unavailable or has no API key.
 
 ## Implementation Summary
 
@@ -47,6 +110,7 @@ The system is four classes in `pawpal_system.py`. `Task` represents a single pie
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+export GOOGLE_API_KEY="your-key-here"  # needed for the AI Scheduling Assistant — see below
 ```
 
 ### Suggested workflow
@@ -71,7 +135,12 @@ Today's Schedule
 08:15 — Evening walk (20 min, medium priority)
 ```
 
-## 🧪 Testing PawPal+
+## 🧪 Testing PawPal+ and the Agent
+
+The full suite currently contains 16 tests. Existing domain tests verify completion, sorting, conflicts, recurrence, slot finding, and persistence. The added agent helper tests verify pet/task lookup and 24-hour time parsing without making any Gemini API calls.
+
+Without a Gemini key, the CLI and Streamlit app both degrade to a friendly skip/error state. Live Gemini verification requires a valid key and available model quota.
+
 
 Tests live in `tests/test_pawpal.py` and cover the core domain logic end to end:
 
@@ -101,16 +170,57 @@ platform darwin -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0
 rootdir: /Users/cottonskaka/Desktop/Codepath/ai110-module2show-pawpal-starter1
 configfile: pytest.ini
 plugins: anyio-4.15.1
-collected 10 items
+collected 16 items
 
-tests/test_pawpal.py ..........                                          [100%]
+tests/test_pawpal.py ................                                  [100%]
 
-============================== 10 passed in 0.01s ==============================
+============================== 16 passed in 0.28s ==============================
 ```
 
 ### Confidence Level
 
-⭐⭐⭐⭐☆ (4/5) — All 10 tests pass, covering task completion, pet task tracking, chronological and priority+time sorting, daily recurrence, conflict detection, slot-finding, recurrence conflict auto-resolve, and JSON persistence. Confidence isn't a full 5 stars because a few edge cases discussed during development (midnight rollover in `generate_schedule`/`find_next_available_slot`, double-completing a recurring task, unknown priority strings, exact-boundary `available_minutes`) are understood but not yet covered by tests.
+⭐⭐⭐⭐☆ (4/5) — All 16 tests pass, covering task completion, pet task tracking, chronological and priority+time sorting, daily recurrence, conflict detection, slot-finding, recurrence conflict auto-resolve, JSON persistence, and agent helper parsing. Confidence isn't a full 5 stars because live model availability and provider-side quota/latency remain outside the unit test environment.
+
+## 🔎 Reflection
+
+Building this feature reinforced that an AI agent should orchestrate dependable application tools rather than replace domain logic. Keeping `Scheduler` responsible for scheduling and conflict detection made the agent reviewable and kept AI mistakes from silently corrupting the core model. The most useful collaboration behavior was separating generated code from verified behavior: reviewing each tool signature, tracing real callers, checking diagnostics, and rerunning the 16-test suite.
+
+One limitation is that hosted-model behavior can vary or be temporarily unavailable, so the app retains a deterministic manual workflow and a friendly fallback. A useful next step would be adding a mock Gemini test layer and a small evaluation set for pet grounding, conflict resolution, and malformed input handling.
+
+## ✅ Reliability and Evaluation
+
+The AI feature is evaluated at two levels: deterministic automated tests for its helper logic and live, human review of Gemini requests through the Streamlit UI.
+
+### Automated checks
+
+| Test input or condition | Evaluation criterion | Result |
+|---|---|---|
+| `_find_pet(owner, "Mochi")` | Finds an existing pet case-insensitively | Pass |
+| `_find_pet(owner, "Unknown")` | Returns a clear available-pet error instead of crashing | Pass |
+| `_find_task(owner, "Mochi", "Morning walk")` | Finds an existing task under the specified pet | Pass |
+| `_find_task(owner, "Mochi", "Unknown")` | Returns a clear available-task error | Pass |
+| `_parse_time("14:30")` | Parses a valid 24-hour time | Pass |
+| `_parse_time("not-a-time")` | Rejects malformed input with a corrective `HH:MM` message | Pass |
+
+The full suite also covers scheduling correctness, conflict detection, recurrence, slot finding, persistence, and task behavior. At last run, **16 tests passed** locally without any Gemini API call.
+
+### Runtime guardrails and logging
+
+- Each agent tool catches malformed input and returns an explanation that Gemini can use for the next step.
+- Unknown pets and tasks are never silently invented or deleted.
+- The agent loop is capped at eight iterations.
+- Missing keys and Gemini authentication, quota, server, and connection failures are converted into concise UI/CLI messages.
+- Every tool call is recorded in the in-memory trace with tool name, input, output, and a standard `logging` entry.
+
+### Human evaluation
+
+Live Gemini evaluation should be recorded by a human after a successful provider response. The following template is deliberately not marked as passed until it has been run.
+
+| Test input | Evaluation criterion | Result |
+|---|---|---|
+| `Mochi needs a 30 minute walk and a vet visit sometime after lunch, both high priority.` | Uses real pet names, adds appropriate tasks, generates a schedule, and checks conflicts | Pending live verification |
+| `Add a 10 minute feeding task for Pixel.` | Reports that Pixel is unknown instead of inventing a pet | Pending live verification |
+| Request containing a malformed or impossible time | Handles the error gracefully and asks for/uses a valid `HH:MM` time | Pending live verification |
 
 ## 📐 Smarter Scheduling
 

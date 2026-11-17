@@ -1,7 +1,9 @@
+import os
 from datetime import time
 
 from tabulate import tabulate
 
+import agent
 import formatting
 from pawpal_system import Owner, Pet, Scheduler, Task
 
@@ -203,6 +205,21 @@ def main() -> None:
         f"Reloaded owner '{reloaded.name}' with {len(reloaded.pets)} pet(s) and "
         f"{len(reloaded.get_all_tasks())} task(s) from data.json"
     )
+
+    print("\nAI Scheduling Assistant (Agentic Workflow)")
+    print("=============================================")
+    if not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")):
+        print("Skipped: set GOOGLE_API_KEY (or GEMINI_API_KEY) to see the AI assistant plan, schedule, and self-check a request.")
+    else:
+        result = agent.run_agent(
+            owner,
+            scheduler,
+            "Add a 15 minute grooming session for Luna sometime this morning, medium priority, "
+            "then make sure the whole day's schedule has no conflicts.",
+        )
+        for i, step in enumerate(result.trace, start=1):
+            print(f"{i}. {step['tool']}({step['input']}) -> {step['output']}")
+        print(f"\nSummary: {result.summary}")
 
 
 if __name__ == "__main__":

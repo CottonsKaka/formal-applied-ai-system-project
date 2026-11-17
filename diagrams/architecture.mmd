@@ -1,0 +1,57 @@
+flowchart TB
+    User["Human user"]
+    Tester["Developer / automated tests"]
+
+    subgraph Interfaces["PawPal+ Interfaces"]
+        Streamlit["Streamlit app\napp.py"]
+        CLI["CLI demo\nmain.py"]
+    end
+
+    subgraph Agent["Gemini Agentic Workflow"]
+        RunAgent["run_agent()\nagent.py"]
+        Gemini["Google Gemini API\ngemini-3.8-flash"]
+        Loop["Plan -> Act -> Check -> Fix"]
+        Trace["Tool trace & logging"]
+    end
+
+    subgraph Tools["Agent Tools"]
+        PetTools["list_pets\nadd_task"]
+        ScheduleTools["generate_schedule\ncheck_schedule_conflicts"]
+        FixTools["find_open_slot\nreschedule_task"]
+    end
+
+    subgraph Domain["PawPal+ Domain Model"]
+        Owner["Owner"]
+        Pet["Pet"]
+        Task["Task"]
+        Scheduler["Scheduler"]
+    end
+
+    Storage[("data.json")]
+    Tests["pytest suite\ntests/test_pawpal.py"]
+
+    Tester --> Tests
+    Tester --> Streamlit
+    User --> Streamlit
+    User --> CLI
+    Streamlit --> RunAgent
+    CLI --> RunAgent
+    RunAgent --> Gemini
+    Gemini --> Loop
+    Loop --> PetTools
+    Loop --> ScheduleTools
+    Loop --> FixTools
+    PetTools --> Owner
+    PetTools --> Pet
+    ScheduleTools --> Scheduler
+    FixTools --> Scheduler
+    FixTools --> Task
+    Owner --> Pet
+    Pet --> Task
+    Scheduler --> Owner
+    Scheduler --> Task
+    Tests --> Scheduler
+    Trace --> Tester
+    RunAgent --> Trace
+    RunAgent --> Storage
+    Streamlit --> Storage

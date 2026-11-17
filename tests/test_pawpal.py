@@ -1,5 +1,8 @@
 from datetime import date, time, timedelta
 
+import pytest
+
+from agent import _find_pet, _find_task, _parse_time
 from pawpal_system import Owner, Pet, Scheduler, Task
 
 
@@ -252,3 +255,53 @@ def test_save_and_load_json_round_trip(tmp_path):
     assert reloaded_task.description == "Feeding"
     assert reloaded_task.scheduled_time == time(8, 0)
     assert reloaded_task.due_date == date(2026, 1, 1)
+
+
+def _owner_with_mochi_and_a_task() -> Owner:
+    owner = Owner(name="Jordan", contact_info="jordan@example.com")
+    pet = Pet(name="Mochi", species="dog", breed="Shiba Inu", age=3, weight=22.5, height=40.0)
+    pet.add_task(
+        Task(
+            pet_id=pet.pet_id,
+            description="Morning walk",
+            task_type="walk",
+            duration_minutes=30,
+            priority="high",
+            scheduled_time=time(7, 30),
+        )
+    )
+    owner.add_pet(pet)
+    return owner
+
+
+def test_find_pet_is_case_insensitive():
+    owner = _owner_with_mochi_and_a_task()
+    assert _find_pet(owner, "mochi").name == "Mochi"
+    assert _find_pet(owner, "MOCHI").name == "Mochi"
+
+
+def test_find_pet_missing_raises_with_available_names():
+    owner = _owner_with_mochi_and_a_task()
+    with pytest.raises(ValueError, match="Mochi"):
+        _find_pet(owner, "Luna")
+
+
+def test_find_task_is_case_insensitive():
+    owner = _owner_with_mochi_and_a_task()
+    task = _find_task(owner, "Mochi", "morning walk")
+    assert task.description == "Morning walk"
+
+
+def test_find_task_missing_raises_with_available_descriptions():
+    owner = _owner_with_mochi_and_a_task()
+    with pytest.raises(ValueError, match="Morning walk"):
+        _find_task(owner, "Mochi", "Evening walk")
+
+
+def test_parse_time_accepts_hh_mm():
+    assert _parse_time("14:30") == time(14, 30)
+
+
+def test_parse_time_rejects_bad_input():
+    with pytest.raises(ValueError, match="HH:MM"):
+        _parse_time("not a time")
