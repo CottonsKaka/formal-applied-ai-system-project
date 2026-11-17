@@ -14,10 +14,16 @@ flowchart TB
         Trace["Tool trace & logging"]
     end
 
+    subgraph RAG["Retrieval-Augmented Guidance"]
+        Knowledge["rag_docs/*.md"]
+        Retriever["rag.py\nchunk + cosine retrieval"]
+    end
+
     subgraph Tools["Agent Tools"]
         PetTools["list_pets\nadd_task"]
         ScheduleTools["generate_schedule\ncheck_schedule_conflicts"]
         FixTools["find_open_slot\nreschedule_task"]
+        RAGTool["retrieve_context"]
     end
 
     subgraph Domain["PawPal+ Domain Model"]
@@ -41,6 +47,9 @@ flowchart TB
     Loop --> PetTools
     Loop --> ScheduleTools
     Loop --> FixTools
+    Loop --> RAGTool
+    RAGTool --> Retriever
+    Knowledge --> Retriever
     PetTools --> Owner
     PetTools --> Pet
     ScheduleTools --> Scheduler

@@ -4,6 +4,7 @@ import pytest
 
 from agent import _find_pet, _find_task, _parse_time
 from pawpal_system import Owner, Pet, Scheduler, Task
+from rag import PetCareKnowledgeBase, format_retrieved_context
 
 
 def test_sort_by_time_returns_chronological_order():
@@ -305,3 +306,32 @@ def test_parse_time_accepts_hh_mm():
 def test_parse_time_rejects_bad_input():
     with pytest.raises(ValueError, match="HH:MM"):
         _parse_time("not a time")
+
+
+def test_rag_retrieves_matching_local_guidance(tmp_path):
+    (tmp_path / "feeding.md").write_text(
+        "# Feeding\n\nUse routine meal times and a short realistic feeding duration.",
+        encoding="utf-8",
+    )
+    (tmp_path / "medication.md").write_text(
+        "# Medication\n\nMedication timing should be verified with a veterinarian.",
+        encoding="utf-8",
+    )
+
+    base = PetCareKnowledgeBase(tmp_path)
+    chunks = base.retrieve("feeding duration meal")
+
+    assert chunks
+    assert "feeding" in chunks[0].text.lower()
+
+
+def test_rag_returns_no_context_for_empty_query(tmp_path):
+    (tmp_path / "walks.txt").write_text("A walk should fit the pet's needs.", encoding="utf-8")
+
+    base = PetCareKnowledgeBase(tmp_path)
+
+    assert base.retrieve("   ") == []
+
+
+def test_rag_formatter_marks_missing_context():
+    assert format_retrieved_context([]) == "No relevant local pet-care guidance was found."

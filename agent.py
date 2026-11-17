@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import time
 
@@ -20,6 +21,7 @@ from google import genai
 from google.genai import errors, types
 
 from pawpal_system import Owner, Pet, Scheduler, Task
+from rag import PetCareKnowledgeBase, format_retrieved_context
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,8 @@ request into real changes to their schedule, using the tools you're given. Work 
 1. PLAN: if the request implies new care tasks, call add_task for each one. If you're not sure a \
 pet name the owner used actually exists, call list_pets first — never invent a pet; if it really \
 doesn't exist, say so in your final summary instead of guessing.
+Use retrieve_context for requests that need pet-care guidance, such as medication, vet visits, feeding, walks, or grooming.
+Use retrieved guidance only as general context; it does not replace veterinary advice or prescribed instructions.
 2. ACT: call generate_schedule to build today's plan from every task.
 3. CHECK: call check_schedule_conflicts to verify the schedule you just built has no overlaps.
 4. FIX: if conflicts are reported, use find_open_slot to find room and reschedule_task to move the \
@@ -203,6 +207,19 @@ def build_tools(owner: Owner, scheduler: Scheduler, trace: list[dict]) -> list:
         _log_step(trace, "reschedule_task", inputs, result)
         return result
 
+    knowledge_base = PetCareKnowledgeBase(Path(__file__).parent / "rag_docs")
+
+    def retrieve_context(query: str) -> str:
+        """Retrieve relevant local pet-care guidance for a request."""
+        try:
+            chunks = knowledge_base.retrieve(query, top_k=3)
+            result = format_retrieved_context(chunks)
+        except Exception as exc:
+            result = f"Could not retrieve pet-care guidance: {exc}"
+            logger.error("retrieve_context failed: %s", exc)
+        _log_step(trace, "retrieve_context", {"query": query}, result)
+        return result
+
     functions = {
         "list_pets": list_pets,
         "add_task": add_task,
@@ -210,6 +227,7 @@ def build_tools(owner: Owner, scheduler: Scheduler, trace: list[dict]) -> list:
         "check_schedule_conflicts": check_schedule_conflicts,
         "find_open_slot": find_open_slot,
         "reschedule_task": reschedule_task,
+        "retrieve_context": retrieve_context,
     }
 
     declarations = [
@@ -251,6 +269,15 @@ def build_tools(owner: Owner, scheduler: Scheduler, trace: list[dict]) -> list:
                     "after": types.Schema(type=types.Type.STRING),
                 },
                 required=["duration_minutes"],
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="retrieve_context",
+            description="Retrieve relevant guidance from the local pet-care knowledge base.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={"query": types.Schema(type=types.Type.STRING)},
+                required=["query"],
             ),
         ),
         types.FunctionDeclaration(

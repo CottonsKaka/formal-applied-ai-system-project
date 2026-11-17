@@ -39,6 +39,12 @@ While developing this feature, I used AI collaboration to inspect the project, c
 
 **What I learned:** a reliable AI feature needs explicit boundaries. Clear tool schemas, real-state lookup, error translation, iteration limits, logging, unit tests, and a manual fallback are more important than making every response look polished. One limitation of my current testing is that it has not yet recorded a complete successful Gemini task-creation-and-conflict-resolution run, so live human evaluation remains pending.
 
+## RAG Scope and Risks
+
+PawPal+ now includes a local RAG knowledge base in `rag_docs/`. It uses simple paragraph chunking and term-frequency cosine similarity, then exposes retrieval through Gemini's `retrieve_context` tool. This is not a medical knowledge base and may miss relevant guidance because it does not use embeddings or semantic re-ranking. Retrieved material is general scheduling context only and must not interpret a prescription or replace veterinarian care.
+
+The library can be improved by veterinarians or trusted owners. Every retrieval result includes its source filename in the agent trace. If no relevant text is found, the tool clearly reports that no local context was available.
+
 ## Responsible Use Summary
 
 Use this project for demonstration and low-stakes schedule assistance. Add or review tasks in the UI, especially when a model moves an existing task. Do not use generated pet-care timings as veterinary advice or in a critical health workflow. Keep API keys private, do not commit secrets, and report provider errors rather than retrying indefinitely.

@@ -36,6 +36,7 @@ Your final app should:
 - **Recurrence conflict auto-resolve** — `Scheduler.resolve_recurrence_conflict()` builds on the slot finder: if a freshly-recurring task would land on top of something else, it's automatically bumped to the next open slot instead of silently overlapping.
 - **JSON persistence** — `Owner.save_to_json()` / `Owner.load_from_json()` (backed by `to_dict()`/`from_dict()` on `Task`, `Pet`, and `Owner`) let the whole system — every pet and every task — survive between runs.
 - **Formatted output** — emoji priority/task-type labels and a `tabulate`-rendered CLI table (`formatting.py`, used by `main.py`), plus color-coded priority badges in the Streamlit UI.
+- **📚 Retrieval-Augmented Pet-Care Guidance (RAG)** — `rag.py` loads local Markdown from `rag_docs/`, splits it into paragraph chunks, retrieves the most relevant guidance with term-frequency cosine similarity, and exposes it to Gemini through a `retrieve_context` tool. Retrieved text is shown in the agent trace and used to ground general responses, not replace veterinary advice.
 - **🤖 AI Scheduling Assistant (Agentic Workflow)** — `agent.py`'s `run_agent()` turns a plain-language request ("Mochi needs a walk and a vet visit after lunch, both high priority") into real changes: it plans by calling `add_task`, acts by calling `generate_schedule`, checks its own work with `check_schedule_conflicts`, and fixes anything it finds with `find_open_slot` + `reschedule_task` — repeating the check/fix step until the schedule is clean. Wired into both `app.py` (an "AI Scheduling Assistant" section with a text box, a step-by-step trace, and the resulting schedule) and `main.py` (a CLI demo at the end of the run). See **AI Scheduling Assistant** below for setup and how it maps to the assignment's AI-feature requirement.
 
 ## 🤖 AI Scheduling Assistant (Agentic Workflow)
@@ -48,6 +49,8 @@ This is the project's required "advanced AI feature": an **agentic workflow** bu
 2. **Act** — calls `generate_schedule` to build the day's plan.
 3. **Check** — calls `check_schedule_conflicts` to verify its own work.
 4. **Fix** — if conflicts are found, calls `find_open_slot` + `reschedule_task` to resolve them, then checks again.
+
+**RAG retrieval:** Before answering requests that involve feeding, walks, grooming, medication, vet visits, or conflicts, the agent can call `retrieve_context`. PawPal+ searches local documents in `rag_docs/`, ranks paragraph chunks by cosine similarity, and returns the cited source text to Gemini. This improves grounding without sending the pet-care library to a third-party vector service.
 
 **Guardrails & logging:** every tool call is wrapped in its own try/except (a bad pet name, task field, or time string comes back as a clear error string instead of crashing the run) and logged via the standard `logging` module and an in-memory trace shown in the UI; the loop is capped (`max_iterations`, default 8) so a confused run can't go forever.
 
@@ -137,7 +140,7 @@ Today's Schedule
 
 ## 🧪 Testing PawPal+ and the Agent
 
-The full suite currently contains 16 tests. Existing domain tests verify completion, sorting, conflicts, recurrence, slot finding, and persistence. The added agent helper tests verify pet/task lookup and 24-hour time parsing without making any Gemini API calls.
+The full suite currently contains 19 tests. Existing domain tests verify completion, sorting, conflicts, recurrence, slot finding, and persistence. The added agent helper tests verify pet/task lookup and 24-hour time parsing without making any Gemini API calls.
 
 Without a Gemini key, the CLI and Streamlit app both degrade to a friendly skip/error state. Live Gemini verification requires a valid key and available model quota.
 
@@ -170,16 +173,16 @@ platform darwin -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0
 rootdir: /Users/cottonskaka/Desktop/Codepath/ai110-module2show-pawpal-starter1
 configfile: pytest.ini
 plugins: anyio-4.15.1
-collected 16 items
+collected 19 items
 
-tests/test_pawpal.py ................                                  [100%]
+tests/test_pawpal.py ...................                              [100%]
 
-============================== 16 passed in 0.28s ==============================
+============================== 19 passed in 0.40s ==============================
 ```
 
 ### Confidence Level
 
-⭐⭐⭐⭐☆ (4/5) — All 16 tests pass, covering task completion, pet task tracking, chronological and priority+time sorting, daily recurrence, conflict detection, slot-finding, recurrence conflict auto-resolve, JSON persistence, and agent helper parsing. Confidence isn't a full 5 stars because live model availability and provider-side quota/latency remain outside the unit test environment.
+⭐⭐⭐⭐☆ (4/5) — All 19 tests pass, covering task completion, pet task tracking, chronological and priority+time sorting, daily recurrence, conflict detection, slot-finding, recurrence conflict auto-resolve, JSON persistence, and agent helper parsing. Confidence isn't a full 5 stars because live model availability and provider-side quota/latency remain outside the unit test environment.
 
 ## 🔎 Reflection
 
@@ -203,8 +206,10 @@ The AI feature is evaluated at two levels: deterministic automated tests for its
 | `_find_task(owner, "Mochi", "Unknown")` | Returns a clear available-task error | Pass |
 | `_parse_time("14:30")` | Parses a valid 24-hour time | Pass |
 | `_parse_time("not-a-time")` | Rejects malformed input with a corrective `HH:MM` message | Pass |
+| `PetCareKnowledgeBase.retrieve("feeding duration")` | Retrieves the matching local feeding guidance | Pass |
+| Empty RAG query | Returns no fabricated context | Pass |
 
-The full suite also covers scheduling correctness, conflict detection, recurrence, slot finding, persistence, and task behavior. At last run, **16 tests passed** locally without any Gemini API call.
+The full suite also covers scheduling correctness, conflict detection, recurrence, slot finding, persistence, and task behavior. At last run, **19 tests passed** locally without any Gemini API call.
 
 ### Runtime guardrails and logging
 
