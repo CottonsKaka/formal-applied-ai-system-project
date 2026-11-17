@@ -170,14 +170,46 @@ Sample test output:
 ```
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.7, pytest-9.1.1, pluggy-1.7.0
-rootdir: /Users/cottonskaka/Desktop/Codepath/ai110-module2show-pawpal-starter1
+rootdir: /Users/cottonskaka/Desktop/Codepath/formal-applied-ai-system-project
 configfile: pytest.ini
 plugins: anyio-4.15.1
 collected 19 items
 
 tests/test_pawpal.py ...................                              [100%]
 
-============================== 19 passed in 0.40s ==============================
+============================== 19 passed in 0.19s ==============================
+```
+
+### Reproducible command evidence
+
+The following command is safe to run without a Gemini key and verifies that the non-AI application and friendly fallback still work:
+
+```bash
+env -u GOOGLE_API_KEY -u GEMINI_API_KEY ./.venv/bin/python main.py
+```
+
+Relevant output:
+
+```text
+Persistence (save/load)
+==========================
+Saved current owner, pets, and tasks to data.json
+Reloaded owner 'Jordan' with 2 pet(s) and 11 task(s) from data.json
+
+AI Scheduling Assistant (Agentic Workflow)
+=============================================
+Skipped: set GOOGLE_API_KEY (or GEMINI_API_KEY) to see the AI assistant plan, schedule, and self-check a request.
+```
+
+For the local test suite, use:
+
+```bash
+./.venv/bin/python -m pytest -q
+```
+
+```text
+...................                                                      [100%]
+19 passed in 0.19s
 ```
 
 ### Confidence Level
@@ -188,7 +220,7 @@ tests/test_pawpal.py ...................                              [100%]
 
 The detailed limitation, misuse-prevention, testing-surprise, and human-AI collaboration discussion is in [model_card.md](model_card.md).
 
-Building this feature reinforced that an AI agent should orchestrate dependable application tools rather than replace domain logic. Keeping `Scheduler` responsible for scheduling and conflict detection made the agent reviewable and kept AI mistakes from silently corrupting the core model. The most useful collaboration behavior was separating generated code from verified behavior: reviewing each tool signature, tracing real callers, checking diagnostics, and rerunning the 16-test suite.
+Building this feature reinforced that an AI agent should orchestrate dependable application tools rather than replace domain logic. Keeping `Scheduler` responsible for scheduling and conflict detection made the agent reviewable and kept AI mistakes from silently corrupting the core model. The most useful collaboration behavior was separating generated code from verified behavior: reviewing each tool signature, tracing real callers, checking diagnostics, and rerunning the 19-test suite.
 
 One limitation is that hosted-model behavior can vary or be temporarily unavailable, so the app retains a deterministic manual workflow and a friendly fallback. A useful next step would be adding a mock Gemini test layer and a small evaluation set for pet grounding, conflict resolution, and malformed input handling.
 

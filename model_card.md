@@ -18,7 +18,7 @@ The scheduling domain remains deterministic: Python functions calculate availabl
 
 ## Testing Surprises
 
-The automated suite **does not call Gemini**. At the latest local run, all 16 tests passed, including agent helper tests for `_find_pet`, `_find_task`, and `_parse_time`.
+The automated suite **does not call Gemini**. At the latest local run, all 19 tests passed, including agent helper tests for `_find_pet`, `_find_task`, and `_parse_time`.
 
 Live testing produced provider-level surprises:
 
