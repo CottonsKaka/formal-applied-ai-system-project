@@ -183,6 +183,8 @@ tests/test_pawpal.py ................                                  [100%]
 
 ## 🔎 Reflection
 
+The detailed limitation, misuse-prevention, testing-surprise, and human-AI collaboration discussion is in [model_card.md](model_card.md).
+
 Building this feature reinforced that an AI agent should orchestrate dependable application tools rather than replace domain logic. Keeping `Scheduler` responsible for scheduling and conflict detection made the agent reviewable and kept AI mistakes from silently corrupting the core model. The most useful collaboration behavior was separating generated code from verified behavior: reviewing each tool signature, tracing real callers, checking diagnostics, and rerunning the 16-test suite.
 
 One limitation is that hosted-model behavior can vary or be temporarily unavailable, so the app retains a deterministic manual workflow and a friendly fallback. A useful next step would be adding a mock Gemini test layer and a small evaluation set for pet grounding, conflict resolution, and malformed input handling.
